@@ -4,27 +4,27 @@ using PyCall
 fugashi = pyimport("fugashi")
 const LemmaINDEX = 8
 
-function Summarize(document::T where T<:AbstractString; threshold=0.1, mmr_l=0.8)
+function Summarize(document::T where T<:AbstractString; threshold=0.1, mmr_l=0.8, igpref=4)
     
     splited_document = Tuple(
         sentence 
         for sentence in split(replace(document, "。"=>"。\n"), "\n")
         if sentence != "" || match(r"^[ ]+$", sentence) === nothing
     )
-    sentences = tokenize(splited_document)
+    sentences = tokenize(splited_document, igpref=igpref)
     rated = lexrank(sentences, threshold, mmr_l)
     #println(scores)
     return ((score, splited_document[i]) for (i,score) in rated)
 end
 
-function tokenize(texts)
+function tokenize(texts; igpref=4)
     tagger = fugashi.Tagger("-Owakati")
     resultarray = fill([""], length(texts))
     for (i, text) in enumerate(texts)
         sentence::Array{String, 1} = []
         tagger.parse(text)
         for (i, word) in enumerate(tagger(text))
-            i == 0 && continue
+            i < igpref && continue
             w = word.feature[LemmaINDEX]
             w = typeof(w) != String ? word.surface : w
             word.feature[1] in ("名詞", "形容詞","動詞") || continue

@@ -52,21 +52,21 @@ function summarize(c::Client, m::Message)
     # Display the message contents.
     println("Received message: $(m.content)")
     
-    coms = split(m.content, " ")
-    bef, aft = coms[2:3]
-    num = parse(Int, get(coms, 4, "num:3")[5:end])
-    threshold = parse(Float64, get(coms, 5, "threshold:0.1")[11:end])
-    mmr_l = parse(Float64, get(coms, 6, "mmr_l:0.8")[7:end])
-    # _, bef = split(m.content, " ")
+    args = Dict(split(i, ":") for i in split(m.content, " ")[2:end])
+    bef, aft = parse(Int, args["bef"]), parse(Int, args["aft"])
+    num = parse(Int, get(args, "num", "3"))
+    threshold = parse(Float64, get(args, "threshold", "0.1"))
+    mmr = parse(Float64, get(args, "mmr", "0.8"))
+    igpref = parse(Float64, get(args, "igpref", "2")) * 2
+    println("bef:$(bef), aft:$aft, num:$num, threshold:$threshold, mmr:$mmr")
     doc = ""
     resp = get_channel_history(
-        c, m.channel_id, 
-        before=parse(Int, bef[5:end]), after=parse(Int, aft[5:end]),
-        limit=-1
+        c, m.channel_id, before=bef, after=aft, limit=-1
     )
     
     for _m in resp
-        _mid = string(_m.id)
+        messagepref = "$(_m.id):$(_m.author.id)"
+        
         content = _m.content
         content == "" && continue
         content = replace(
@@ -75,26 +75,26 @@ function summarize(c::Client, m::Message)
         )
         content = replace(
             content,
-            r"。(?!=[ ]*\n)" => "。$(_mid) "
+            r"。(?!=[ ]*\n)" => "。$messagepref "
         )
         content = replace(
             content,
-            r"\n(?=[ ]*[^ \n]+)" => "\n$(_mid) "
+            r"\n(?=[ ]*[^ \n]+)" => "\n$messagepref "
         )
 
-        doc *= "$(_mid) $content\n"
+        doc *= "$messagepref $content\n"
     end
     # println(doc)
     baseurl = "https://discord.com/channels/$(m.guild_id)/$(m.channel_id)/"
     sumtuple = Tuple(Iterators.take(Summarize(
-        doc, threshold=threshold, mmr_l=mmr_l), 3))
+        doc, threshold=threshold, mmr_l=mmr, igpref=igpref), num))
     println(sumtuple)
     sumdoc = """summarized $(length(resp)) messages
         from:$(baseurl)$(resp[1].id) to:$(baseurl)$(resp[end].id)
         """ * join([
         begin    
-            mid, content = split(t[2], " ", limit=2)
-            """ $(baseurl)$(mid)
+            pref, content = split(t[2], " ", limit=2)
+            """ $(baseurl)$(split(pref, ":")[1])
             > $(content)"""
         end for t in sumtuple
     ], "\n")
@@ -117,7 +117,7 @@ function main()
     add_handler!(c, Ready, onready)
     add_command!(
         c, :summa, summarize;
-        pattarn=r"^summa bef:(.+) aft:(.+)( num:(.+)?( threshold:(.+)( mmr_l:(.+))?)?)?"
+        pattarn=r"^bef:(.+) aft:(.+)( [a-zA-Z]+:[0-9.]+)$"
     )
     # Wait for the client to disconnect.
     return c
