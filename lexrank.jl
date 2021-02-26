@@ -27,7 +27,7 @@ function tokenize(texts; igpref=4)
             i < igpref && continue
             w = word.feature[LemmaINDEX]
             w = typeof(w) != String ? word.surface : w
-            word.feature[1] in ("名詞", "形容詞","動詞") || continue
+            word.feature[1] in ("名詞", "形容詞",) || continue
             #word.feature[2] in ("数詞",) && continue
             push!(sentence, w)
         end
